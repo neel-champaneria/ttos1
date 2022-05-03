@@ -21,7 +21,7 @@ class ApiResource {
       if (
         window.location.hostname === "localhost" ||
         window.location.hostname === "ttos-dev.ellieeats.sg" ||
-        window.location.hostname === "ttos-1.vercel.app"
+        window.location.hostname === "ttos1.vercel.app"
       ) {
         baseUrl = process.env.NEXT_PUBLIC_STAGING2_BASE_URL;
         tenantUrl = process.env.NEXT_PUBLIC_STAGING2_TENANT_URL;
@@ -66,7 +66,7 @@ class ApiResource {
       if (
         window.location.hostname === "localhost" ||
         window.location.hostname === "ttos-dev.ellieeats.sg" ||
-        window.location.hostname === "ttos-1.vercel.app"
+        window.location.hostname === "ttos1.vercel.app"
       ) {
         const API_key = process.env.NEXT_PUBLIC_STAGING2_API_KEY;
         const secret_key = process.env.NEXT_PUBLIC_STAGING2_SECRET_KEY;
