@@ -4,8 +4,8 @@ import SingleOrderItem from "./singleOrderItem";
 const SingleOrder = ({ order }) => {
   return (
     <>
-      {order.orderItems.map((item) => {
-        return <SingleOrderItem item={item} />;
+      {order.orderItems.map((item, idx) => {
+        return <SingleOrderItem key={idx} item={item} />;
       })}
       <div className="bottom_block mb60">
         <div className="bg-white p_reorder_bottom">
