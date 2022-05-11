@@ -23,8 +23,8 @@ class ApiResource {
         window.location.hostname === "ttos-dev.ellieeats.sg" ||
         window.location.hostname === "ttos1.vercel.app"
       ) {
-        baseUrl = process.env.NEXT_PUBLIC_STAGING4_BASE_URL;
-        tenantUrl = process.env.NEXT_PUBLIC_STAGING4_TENANT_URL;
+        baseUrl = process.env.NEXT_PUBLIC_STAGING2_BASE_URL;
+        tenantUrl = process.env.NEXT_PUBLIC_STAGING2_TENANT_URL;
         let tempHost = "ttos-staging2.ellieeats.sg";
         console.log("temp-host: ", tempHost.substring(5));
         console.log(
@@ -68,8 +68,8 @@ class ApiResource {
         window.location.hostname === "ttos-dev.ellieeats.sg" ||
         window.location.hostname === "ttos1.vercel.app"
       ) {
-        const API_key = process.env.NEXT_PUBLIC_STAGING4_API_KEY;
-        const secret_key = process.env.NEXT_PUBLIC_STAGING4_SECRET_KEY;
+        const API_key = process.env.NEXT_PUBLIC_STAGING2_API_KEY;
+        const secret_key = process.env.NEXT_PUBLIC_STAGING2_SECRET_KEY;
         const api_secret = API_key + ":" + secret_key;
         console.log("API_key: ", API_key);
         console.log("secret_key: ", secret_key);
