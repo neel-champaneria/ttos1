@@ -1,140 +1,198 @@
-import currency from 'currency.js'
-import {deepClone} from './utils';
+import currency from "currency.js";
+import { deepClone } from "./utils";
 import {
-    CARD_DELIVERY,
-    CARD_PICKUP,
-    CASH_DELIVERY,
-    CASH_PICKUP,
-    CMB_DELIVERY,
-    CMB_PICKUP,
-    PAY_LAH_DELIVERY, PAY_LAH_PICKUP, PAY_NOW_DELIVERY, PAY_NOW_PICKUP
+  CARD_DELIVERY,
+  CARD_PICKUP,
+  CASH_DELIVERY,
+  CASH_PICKUP,
+  CMB_DELIVERY,
+  CMB_PICKUP,
+  PAY_LAH_DELIVERY,
+  PAY_LAH_PICKUP,
+  PAY_NOW_DELIVERY,
+  PAY_NOW_PICKUP,
 } from "../constants";
-import {format, parse, isBefore, getDay, getTime, getMinutes, getDate, getHours, isAfter, isEqual} from 'date-fns';
+import {
+  format,
+  parse,
+  isBefore,
+  getDay,
+  getTime,
+  getMinutes,
+  getDate,
+  getHours,
+  isAfter,
+  isEqual,
+} from "date-fns";
 
 export class Money {
+  static __instance = null;
 
-    static  __instance = null;
+  constructor(currencyConf, taxConfig, promotions, user, paymentMethods) {
+    if (currencyConf) {
+      var currencyPosition = (currencyConf.currencyPosition || "!#").replace(
+        "x",
+        "!"
+      );
+      var currencyCode = currencyConf.currencyCode || "$";
+      var decimalPlace = parseInt(currencyConf.decimalPlace) || 2;
+      this.currency = (value) =>
+        currency(value, {
+          symbol: currencyCode,
+          precision: decimalPlace,
+          pattern: currencyPosition,
+        });
+    } else {
+      this.currency = (value) =>
+        currency(value, { symbol: "$ ", precision: 2 });
+    }
+    this.taxConfig = taxConfig;
+    this.promotionConfig = promotions;
+    this.paymentMethods = paymentMethods;
+  }
 
-    constructor(currencyConf, taxConfig, promotions, user, paymentMethods) {
-        if (currencyConf) {
-            var currencyPosition = (currencyConf.currencyPosition || '!#').replace('x', '!');
-            var currencyCode = currencyConf.currencyCode || '$';
-            var decimalPlace = parseInt(currencyConf.decimalPlace) || 2;
-            this.currency = value => currency(value, {symbol: currencyCode, precision: decimalPlace, pattern: currencyPosition});
+  static init = (currencyConf, taxConfig, promotions, user, paymentMethods) => {
+    if (Money.__instance == null) {
+      Money.__instance = new Money(
+        currencyConf,
+        taxConfig,
+        promotions,
+        user,
+        paymentMethods
+      );
+    } else {
+      Money.__instance.currencyConf = currencyConf;
+      Money.__instance.taxConfig = taxConfig;
+      Money.__instance.promotionConfig = promotions;
+      Money.__instance.user = user;
+      Money.__instance.paymentMethods = paymentMethods;
+    }
+  };
+
+  static moneyFormat = (val) => {
+    return Money.__instance.currency(val).format(true);
+  };
+
+  static sum = (val1, val2) => {
+    return Money.__instance.currency(val1).add(val2).value;
+  };
+
+  static calcPrice = (itemPrice, qty, modifierPriceSum) => {
+    if (!modifierPriceSum) modifierPriceSum = 0;
+    var money = Money.__instance
+      .currency(itemPrice)
+      .add(modifierPriceSum)
+      .multiply(qty);
+    return money.value;
+  };
+
+  static round = (number, multiple, roundType) => {
+    if (roundType == 0) return number;
+    var result = number;
+    var division = (number / multiple).toString(10);
+    division = division.substr(0, division.indexOf("."));
+    var sub = (number - (division * multiple).toFixed(2)).toFixed(2);
+    if (sub > 0 && sub < multiple) {
+      if (roundType == 2) {
+        //round up
+        division = parseInt(division, 10) + 1;
+        result = division * multiple;
+      } else if (roundType == 3) {
+        //round down
+        result = division * multiple;
+      } else {
+        //just round
+        if (sub >= (multiple / 2).toFixed(2)) {
+          division = parseInt(division, 10) + 1;
+          result = division * multiple;
         } else {
-            this.currency = value => currency(value, {symbol: '$ ', precision: 2});
+          result = division * multiple;
         }
-        this.taxConfig = taxConfig;
-        this.promotionConfig = promotions;
-        this.paymentMethods = paymentMethods;
+      }
+    }
+    return result.toFixed(2);
+  };
+
+  /**
+   * Calculate order price with tax include in item
+   */
+  static orderPrice = (
+    order,
+    orderItems,
+    removedPromotions,
+    buyOneGetOneFreePromotions
+  ) => {
+    console.log("money ------>>>>>>", order);
+    console.log("orderItems ------>>>>>>", orderItems);
+    let taxConfig = Money.__instance.taxConfig;
+    let activePromotions = Money.__instance.promotionConfig;
+    const currentUser = Money.__instance.user;
+    let currentOrderItems = [...orderItems];
+    let selectedPromotions = [];
+    let userSelectedPaymentMethod = "";
+    let userSelectedPaymentMethodType = 0;
+    let currentClientType = "A";
+
+    // console.log('orderPrice deliveryZoneId ===>', order.deliveryZoneId);
+
+    if (
+      order.paymentMethod === CASH_DELIVERY ||
+      order.paymentMethod === CASH_PICKUP
+    ) {
+      userSelectedPaymentMethod = "Cash";
+      userSelectedPaymentMethodType = 0;
+    } else if (
+      order.paymentMethod === CARD_DELIVERY ||
+      order.paymentMethod === CARD_PICKUP
+    ) {
+      userSelectedPaymentMethod = "Card";
+      userSelectedPaymentMethodType = 1;
+    } else if (
+      order.paymentMethod === CMB_DELIVERY ||
+      order.paymentMethod === CMB_PICKUP
+    ) {
+      userSelectedPaymentMethod =
+        "Call me back and I'll tell you my card details";
+      userSelectedPaymentMethodType = 1;
+    } else if (
+      order.paymentMethod === PAY_LAH_DELIVERY ||
+      order.paymentMethod === PAY_LAH_PICKUP
+    ) {
+      userSelectedPaymentMethod = "PayLah";
+      userSelectedPaymentMethodType = 1;
+    } else if (
+      order.paymentMethod === PAY_NOW_DELIVERY ||
+      order.paymentMethod === PAY_NOW_PICKUP
+    ) {
+      userSelectedPaymentMethod = "PayNow";
+      userSelectedPaymentMethodType = 1;
     }
 
-    static init = (currencyConf, taxConfig, promotions, user, paymentMethods) => {
-        if (Money.__instance == null) {
-            Money.__instance = new Money(currencyConf, taxConfig, promotions, user, paymentMethods);
-        } else {
-            Money.__instance.currencyConf = currencyConf;
-            Money.__instance.taxConfig = taxConfig;
-            Money.__instance.promotionConfig = promotions;
-            Money.__instance.user = user;
-            Money.__instance.paymentMethods = paymentMethods;
-        }
-    };
-
-    static moneyFormat = (val) => {
-        return Money.__instance.currency(val).format(true);
-    };
-
-    static sum = (val1, val2) => {
-        return Money.__instance.currency(val1).add(val2).value;
-    };
-
-    static calcPrice = (itemPrice, qty, modifierPriceSum) => {
-        if (!modifierPriceSum) modifierPriceSum = 0;
-        var money = Money.__instance.currency(itemPrice).add(modifierPriceSum).multiply(qty);
-        return money.value;
-    };
-
-    static round = (number, multiple, roundType) => {
-        if (roundType == 0) return number;
-        var result = number;
-        var division = (number / multiple).toString(10);
-        division = division.substr(0, division.indexOf('.'));
-        var sub = (number - (division * multiple).toFixed(2)).toFixed(2);
-        if (sub > 0 && sub < multiple) {
-            if (roundType == 2) {
-                //round up
-                division = parseInt(division, 10) + 1;
-                result = division * multiple;
-            } else if (roundType == 3) {
-                //round down
-                result = division * multiple;
-            } else {
-                //just round
-                if (sub >= (multiple / 2).toFixed(2)) {
-                    division = parseInt(division, 10) + 1;
-                    result = division * multiple;
-                } else {
-                    result = division * multiple;
-                }
-            }
-        }
-        return result.toFixed(2);
+    if (currentUser?.orderCount > 0) {
+      currentClientType = "R";
+    } else {
+      currentClientType = "N";
     }
 
-    /**
-     * Calculate order price with tax include in item
-     */
-    static orderPrice = (order, orderItems, removedPromotions, buyOneGetOneFreePromotions) => {
-        let taxConfig = Money.__instance.taxConfig;
-        let activePromotions = Money.__instance.promotionConfig;
-        const currentUser = Money.__instance.user;
-        let currentOrderItems = [...orderItems];
-        let selectedPromotions = [];
-        let userSelectedPaymentMethod = '';
-        let userSelectedPaymentMethodType = 0;
-        let currentClientType = 'A';
+    const calcPriceSumWithoutDiscountOnItem = (currentOrderItems) => {
+      return currentOrderItems.map((orderItem) => {
+        let orderItemPriceSumValue;
+        orderItemPriceSumValue = Money.calcPrice(
+          orderItem.price,
+          orderItem.qty,
+          orderItem.modifierPriceSum
+        );
+        orderItem.priceSum = orderItemPriceSumValue;
+        delete orderItem.discountName;
+        delete orderItem.ooDiscountExplaination;
+        delete orderItem.discountAmt;
+        delete orderItem.discountPercentage;
+        delete orderItem.isGetFreeItem;
+        return orderItem;
+      });
+    };
 
-        // console.log('orderPrice deliveryZoneId ===>', order.deliveryZoneId);
-
-        if (order.paymentMethod === CASH_DELIVERY || order.paymentMethod === CASH_PICKUP) {
-            userSelectedPaymentMethod = 'Cash';
-            userSelectedPaymentMethodType = 0;
-        } else if (order.paymentMethod === CARD_DELIVERY || order.paymentMethod === CARD_PICKUP) {
-            userSelectedPaymentMethod = 'Card';
-            userSelectedPaymentMethodType = 1;
-        } else if (order.paymentMethod === CMB_DELIVERY || order.paymentMethod === CMB_PICKUP) {
-            userSelectedPaymentMethod = 'Call me back and I\'ll tell you my card details';
-            userSelectedPaymentMethodType = 1;
-        } else if (order.paymentMethod === PAY_LAH_DELIVERY || order.paymentMethod === PAY_LAH_PICKUP) {
-            userSelectedPaymentMethod = 'PayLah';
-            userSelectedPaymentMethodType = 1;
-        }  else if (order.paymentMethod === PAY_NOW_DELIVERY || order.paymentMethod === PAY_NOW_PICKUP) {
-            userSelectedPaymentMethod = 'PayNow';
-            userSelectedPaymentMethodType = 1;
-        }
-
-        if (currentUser?.orderCount > 0) {
-            currentClientType = 'R';
-        } else {
-            currentClientType = 'N';
-        }
-
-        const calcPriceSumWithoutDiscountOnItem = (currentOrderItems) => {
-            return currentOrderItems.map(orderItem => {
-                let orderItemPriceSumValue;
-                orderItemPriceSumValue = Money.calcPrice(orderItem.price, orderItem.qty, orderItem.modifierPriceSum);
-                orderItem.priceSum = orderItemPriceSumValue;
-                delete orderItem.discountName;
-                delete orderItem.ooDiscountExplaination;
-                delete orderItem.discountAmt;
-                delete orderItem.discountPercentage;
-                delete orderItem.isGetFreeItem;
-                return orderItem;
-            });
-        };
-
-        const calcBOGOFPrice = (tempBuyOneGetOneFreePromotion) => {
+    /* const calcBOGOFPrice = (tempBuyOneGetOneFreePromotion) => {
             const {eligibleItemsGroup1Percent, eligibleItemsGroup2Percent} = tempBuyOneGetOneFreePromotion;
             let discountAmount1 = 0;
             let discountAmount2 = 0;
@@ -277,23 +335,27 @@ export class Money {
                     //     currentOrderItems = calcPriceSumWithoutDiscountOnItem(currentOrderItems);
                 }
             });
-        }
+        } */
 
-        var subTotalValue = currentOrderItems.map(item => item.priceSum).reduce((a, b) => {
-            return Money.sum(a, b);
-        }, 0);
+    var subTotalValue = currentOrderItems
+      .map((item) => item.priceSum)
+      .reduce((a, b) => {
+        return Money.sum(a, b);
+      }, 0);
 
-        var deliveryFee = Money.__instance.currency(order.originalDeliveryFee);
-        var originalDeliveryFee = Money.__instance.currency(order.originalDeliveryFee);
-        var subTotal = Money.__instance.currency(subTotalValue);
-        var total = Money.__instance.currency(subTotal);
-        var totalTax = Money.__instance.currency(0);
-        let discount = Money.__instance.currency(0);
-        let globalDiscountPercent = Money.__instance.currency(0);
-        var taxObj = [];
+    var deliveryFee = Money.__instance.currency(order.originalDeliveryFee);
+    var originalDeliveryFee = Money.__instance.currency(
+      order.originalDeliveryFee
+    );
+    var subTotal = Money.__instance.currency(subTotalValue);
+    var total = Money.__instance.currency(subTotal);
+    var totalTax = Money.__instance.currency(0);
+    let discount = Money.__instance.currency(0);
+    let globalDiscountPercent = Money.__instance.currency(0);
+    var taxObj = [];
 
-        // calculate get free item
-        if (currentOrderItems.length > 0 && activePromotions && activePromotions.length > 0) {
+    // calculate get free item
+    /* if (currentOrderItems.length > 0 && activePromotions && activePromotions.length > 0) {
             currentOrderItems = calcPriceSumWithoutDiscountOnItem(currentOrderItems);
             let totalDiscountMoney = Money.__instance.currency(0);
             activePromotions.filter(promo => promo.type === 'G').map(promo => {
@@ -819,35 +881,35 @@ export class Money {
             });
             selectedPromotions = [...selectedPromotions, ...buyOneGetOneFreePromotions];
             total = total.subtract(discount);
+        } */
+
+    if (deliveryFee.value > 0) {
+      total = total.add(deliveryFee);
+    }
+
+    if (taxConfig && taxConfig.enable) {
+      //group  all item by tax id
+      var tax1Items = [];
+      var tax2Items = [];
+      var tax3Items = [];
+
+      var tax1Value = taxConfig.tax1Value;
+      var tax2Value = taxConfig.tax2Value;
+      var tax3Value = taxConfig.tax3Value;
+
+      currentOrderItems.forEach((orderItem) => {
+        if ((orderItem?.tax1Id || 0) > 0) {
+          tax1Items.push(orderItem);
         }
-
-        if (deliveryFee.value > 0) {
-            total = total.add(deliveryFee);
+        if ((orderItem?.tax2Id || 0) > 0) {
+          tax2Items.push(orderItem);
         }
+        if ((orderItem?.tax3Id || 0) > 0) {
+          tax3Items.push(orderItem);
+        }
+      });
 
-        if (taxConfig && taxConfig.enable) {
-            //group  all item by tax id
-            var tax1Items = [];
-            var tax2Items = [];
-            var tax3Items = [];
-
-            var tax1Value = taxConfig.tax1Value;
-            var tax2Value = taxConfig.tax2Value;
-            var tax3Value = taxConfig.tax3Value;
-
-            currentOrderItems.forEach(orderItem => {
-                if ((orderItem?.tax1Id || 0) > 0) {
-                    tax1Items.push(orderItem);
-                }
-                if ((orderItem?.tax2Id || 0) > 0) {
-                    tax2Items.push(orderItem);
-                }
-                if ((orderItem?.tax3Id || 0) > 0) {
-                    tax3Items.push(orderItem);
-                }
-            });
-
-            buyOneGetOneFreePromotions.map(promotion => {
+      /* buyOneGetOneFreePromotions.map(promotion => {
                 promotion.orderItems.map(orderItem => {
                     if ((orderItem?.tax1Id || 0) > 0) {
                         tax1Items.push(orderItem);
@@ -859,138 +921,407 @@ export class Money {
                         tax3Items.push(orderItem);
                     }
                 });
-            });
+            }); */
 
-            if (tax1Value && tax1Value > 0) {
+      if (tax1Value && tax1Value > 0) {
+        var subTotalTax = Money.__instance.currency(0);
+        var taxMoney = Money.__instance.currency(0);
 
-                var subTotalTax = Money.__instance.currency(0);
-                var taxMoney = Money.__instance.currency(0);
+        if (tax1Items.length > 0) {
+          var subTotalTaxValue = tax1Items
+            .map((item) => item.priceSum)
+            .reduce((a, b) => {
+              return Money.sum(a, b);
+            }, 0);
 
-                if (tax1Items.length > 0) {
-                    var subTotalTaxValue = tax1Items.map(item => item.priceSum).reduce((a, b) => {
-                        return Money.sum(a, b);
-                    }, 0);
+          subTotalTax = subTotalTax.add(subTotalTaxValue);
 
-                    subTotalTax = subTotalTax.add(subTotalTaxValue);
+          // subtract subTotalTax if totalCardDiscount > 0
+          // subTotalTax = subTotalTax.subtract(discount);
+          subTotalTax = subTotalTax
+            .multiply(
+              Money.__instance.currency(100).subtract(globalDiscountPercent)
+            )
+            .divide(100);
 
-                    // subtract subTotalTax if totalCardDiscount > 0
-                    // subTotalTax = subTotalTax.subtract(discount);
-                    subTotalTax = subTotalTax.multiply(Money.__instance.currency(100).subtract(globalDiscountPercent)).divide(100);
-
-                    if (!taxConfig.priceExclude)
-                        taxMoney = taxMoney.add(subTotalTax.multiply(tax1Value).divide(100));
-                    else
-                        taxMoney = subTotalTax.subtract(subTotalTax.divide((100 + tax1Value) /100));
-                    totalTax = totalTax.add(taxMoney);
-                    taxObj.push({
-                        'taxName': taxConfig.tax1Name,
-                        'totalTax': totalTax.value
-                    });
-                }
-            }
-
-            if (tax2Value && tax2Value > 0) {
-
-                var subTotalTax = Money.__instance.currency(0);
-                var taxMoney = Money.__instance.currency(0);
-
-                if (tax2Items.length > 0) {
-                    var subTotalTaxValue = tax2Items.map(item => item.priceSum).reduce((a, b) => {
-                        return Money.sum(a, b);
-                    }, 0);
-
-                    subTotalTax = subTotalTax.add(subTotalTaxValue);
-
-                    // subtract subTotalTax if totalCardDiscount > 0
-                    // subTotalTax = subTotalTax.subtract(discount);
-                    subTotalTax = subTotalTax.multiply(Money.__instance.currency(100).subtract(globalDiscountPercent)).divide(100);
-
-                    if (!taxConfig.priceExclude)
-                        taxMoney = taxMoney.add(subTotalTax.multiply(tax2Value).divide(100));
-                    else
-                        taxMoney = subTotalTax.subtract(subTotalTax.divide((100 + tax2Value) / 100));
-                    totalTax = totalTax.add(taxMoney);
-                    taxObj.push({
-                        'taxName': taxConfig.tax2Name,
-                        'totalTax': totalTax.value
-                    });
-                }
-            }
-
-            if (tax3Value && tax3Value > 0) {
-
-                var subTotalTax = Money.__instance.currency(0);
-                var taxMoney = Money.__instance.currency(0);
-
-                if (tax3Items.length > 0) {
-                    var subTotalTaxValue = tax3Items.map(item => item.priceSum).reduce((a, b) => {
-                        return Money.sum(a, b);
-                    }, 0);
-
-                    subTotalTax = subTotalTax.add(subTotalTaxValue);
-
-                    // subtract subTotalTax if totalCardDiscount > 0
-                    // subTotalTax = subTotalTax.subtract(discount);
-                    subTotalTax = subTotalTax.multiply(Money.__instance.currency(100).subtract(globalDiscountPercent)).divide(100);
-
-                    if (!taxConfig.priceExclude)
-                        taxMoney = taxMoney.add(subTotalTax.multiply(tax3Value).divide(100));
-                    else
-                        taxMoney = subTotalTax.subtract(subTotalTax.divide((100 + tax3Value) /100));
-                    totalTax = totalTax.add(taxMoney);
-                    taxObj.push({
-                        'taxName': taxConfig.tax3Name,
-                        'totalTax': totalTax.value
-                    });
-                }
-            }
-
-            if (!taxConfig.priceExclude) {
-                total = total.add(totalTax);
-            }
-        }
-
-        //rounding here
-        var selectedPaymentMethods = Money.__instance.paymentMethods.filter(paymentMethod => {
-            return paymentMethod.type == userSelectedPaymentMethodType && paymentMethod.enable && paymentMethod.beDefault;
-        }) || [];
-        console.log('Selected Payment Method ---- ', selectedPaymentMethods);
-        if (selectedPaymentMethods.length > 0) {
-            // console.log(total.value);
-            var roundedTotal = total.value;
-            if (userSelectedPaymentMethodType != 1) {
-                roundedTotal = Money.round(total.value, selectedPaymentMethods[0].rounding, selectedPaymentMethods[0].roundType);
-            }
-            // console.log(roundedTotal);
-            total.value = roundedTotal;
-        }
-
-        if (hasAdjustByeOneGetOneFree) {
-            return {
-                subTotal: subTotal.value,
-                total: total.value,
-                totalTax: totalTax.value,
-                taxObj: taxObj,
-                discount: discount.value,
-                deliveryFee: deliveryFee.value,
-                originalDeliveryFee: originalDeliveryFee.value,
-                selectedPromotions: selectedPromotions,
-                buyOneGetOneFreePromotions: buyOneGetOneFreePromotions,
-                orderItems: currentOrderItems,
-            };
-        }
-
-        return {
-            subTotal: subTotal.value,
-            total: total.value,
+          if (!taxConfig.priceExclude)
+            taxMoney = taxMoney.add(
+              subTotalTax.multiply(tax1Value).divide(100)
+            );
+          else
+            taxMoney = subTotalTax.subtract(
+              subTotalTax.divide((100 + tax1Value) / 100)
+            );
+          totalTax = totalTax.add(taxMoney);
+          taxObj.push({
+            taxName: taxConfig.tax1Name,
             totalTax: totalTax.value,
-            taxObj: taxObj,
-            discount: discount.value,
-            deliveryFee: deliveryFee.value,
-            originalDeliveryFee: originalDeliveryFee.value,
-            selectedPromotions: selectedPromotions,
-            orderItems: currentOrderItems,
-        };
-    }
-}
+          });
+        }
+      }
 
+      if (tax2Value && tax2Value > 0) {
+        var subTotalTax = Money.__instance.currency(0);
+        var taxMoney = Money.__instance.currency(0);
+
+        if (tax2Items.length > 0) {
+          var subTotalTaxValue = tax2Items
+            .map((item) => item.priceSum)
+            .reduce((a, b) => {
+              return Money.sum(a, b);
+            }, 0);
+
+          subTotalTax = subTotalTax.add(subTotalTaxValue);
+
+          // subtract subTotalTax if totalCardDiscount > 0
+          // subTotalTax = subTotalTax.subtract(discount);
+          subTotalTax = subTotalTax
+            .multiply(
+              Money.__instance.currency(100).subtract(globalDiscountPercent)
+            )
+            .divide(100);
+
+          if (!taxConfig.priceExclude)
+            taxMoney = taxMoney.add(
+              subTotalTax.multiply(tax2Value).divide(100)
+            );
+          else
+            taxMoney = subTotalTax.subtract(
+              subTotalTax.divide((100 + tax2Value) / 100)
+            );
+          totalTax = totalTax.add(taxMoney);
+          taxObj.push({
+            taxName: taxConfig.tax2Name,
+            totalTax: totalTax.value,
+          });
+        }
+      }
+
+      if (tax3Value && tax3Value > 0) {
+        var subTotalTax = Money.__instance.currency(0);
+        var taxMoney = Money.__instance.currency(0);
+
+        if (tax3Items.length > 0) {
+          var subTotalTaxValue = tax3Items
+            .map((item) => item.priceSum)
+            .reduce((a, b) => {
+              return Money.sum(a, b);
+            }, 0);
+
+          subTotalTax = subTotalTax.add(subTotalTaxValue);
+
+          // subtract subTotalTax if totalCardDiscount > 0
+          // subTotalTax = subTotalTax.subtract(discount);
+          subTotalTax = subTotalTax
+            .multiply(
+              Money.__instance.currency(100).subtract(globalDiscountPercent)
+            )
+            .divide(100);
+
+          if (!taxConfig.priceExclude)
+            taxMoney = taxMoney.add(
+              subTotalTax.multiply(tax3Value).divide(100)
+            );
+          else
+            taxMoney = subTotalTax.subtract(
+              subTotalTax.divide((100 + tax3Value) / 100)
+            );
+          totalTax = totalTax.add(taxMoney);
+          taxObj.push({
+            taxName: taxConfig.tax3Name,
+            totalTax: totalTax.value,
+          });
+        }
+      }
+
+      if (!taxConfig.priceExclude) {
+        total = total.add(totalTax);
+      }
+    }
+
+    //rounding here
+    var selectedPaymentMethods =
+      Money.__instance.paymentMethods.filter((paymentMethod) => {
+        return (
+          paymentMethod.type == userSelectedPaymentMethodType &&
+          paymentMethod.enable &&
+          paymentMethod.beDefault
+        );
+      }) || [];
+    console.log("Selected Payment Method ---- ", selectedPaymentMethods);
+    if (selectedPaymentMethods.length > 0) {
+      // console.log(total.value);
+      var roundedTotal = total.value;
+      if (userSelectedPaymentMethodType != 1) {
+        roundedTotal = Money.round(
+          total.value,
+          selectedPaymentMethods[0].rounding,
+          selectedPaymentMethods[0].roundType
+        );
+      }
+      // console.log(roundedTotal);
+      total.value = roundedTotal;
+    }
+
+    /* if (hasAdjustByeOneGetOneFree) {
+      return {
+        subTotal: subTotal.value,
+        total: total.value,
+        totalTax: totalTax.value,
+        taxObj: taxObj,
+        discount: discount.value,
+        deliveryFee: deliveryFee.value,
+        originalDeliveryFee: originalDeliveryFee.value,
+        selectedPromotions: selectedPromotions,
+        buyOneGetOneFreePromotions: buyOneGetOneFreePromotions,
+        orderItems: currentOrderItems,
+      };
+    } */
+
+    return {
+      subTotal: subTotal.value,
+      total: total.value,
+      totalTax: totalTax.value,
+      taxObj: taxObj,
+      discount: discount.value,
+      deliveryFee: deliveryFee.value,
+      originalDeliveryFee: originalDeliveryFee.value,
+      selectedPromotions: selectedPromotions,
+      orderItems: currentOrderItems,
+    };
+  };
+
+  static orderPriceWithPOS = (order, orderItems) => {
+    let autoSurcharge = true;
+    let serviceChargeName = "Service Charge";
+    let serviceAmount = 10;
+    let servicePercent = true;
+
+    console.log("<<<<<< :orderPricePOS: >>>>>>");
+    let taxConfig = Money.__instance.taxConfig;
+    let currentOrderItems = [...orderItems];
+
+    let subTotal = Money.__instance.currency(0);
+    let subDiscountTotal = Money.__instance.currency(0);
+    let total = Money.__instance.currency(0);
+    let totalTax = Money.__instance.currency(0);
+    let calculatedServiceAmount;
+    let taxObj = [];
+
+    let userSelectedPaymentMethod = "";
+    let userSelectedPaymentMethodType = 0;
+
+    if (
+      order.paymentMethod === CASH_DELIVERY ||
+      order.paymentMethod === CASH_PICKUP
+    ) {
+      userSelectedPaymentMethod = "Cash";
+      userSelectedPaymentMethodType = 0;
+    } else if (
+      order.paymentMethod === CARD_DELIVERY ||
+      order.paymentMethod === CARD_PICKUP
+    ) {
+      userSelectedPaymentMethod = "Card";
+      userSelectedPaymentMethodType = 1;
+    } else if (
+      order.paymentMethod === CMB_DELIVERY ||
+      order.paymentMethod === CMB_PICKUP
+    ) {
+      userSelectedPaymentMethod =
+        "Call me back and I'll tell you my card details";
+      userSelectedPaymentMethodType = 1;
+    } else if (
+      order.paymentMethod === PAY_LAH_DELIVERY ||
+      order.paymentMethod === PAY_LAH_PICKUP
+    ) {
+      userSelectedPaymentMethod = "PayLah";
+      userSelectedPaymentMethodType = 1;
+    } else if (
+      order.paymentMethod === PAY_NOW_DELIVERY ||
+      order.paymentMethod === PAY_NOW_PICKUP
+    ) {
+      userSelectedPaymentMethod = "PayNow";
+      userSelectedPaymentMethodType = 1;
+    }
+
+    for (let item of orderItems) {
+      subTotal = subTotal.add(item.priceSum);
+    }
+
+    total = total.add(subTotal);
+
+    if (autoSurcharge && serviceAmount && serviceAmount > 0) {
+      console.log("service condition");
+      if (servicePercent) {
+        calculatedServiceAmount = subTotal.multiply(serviceAmount).divide(100);
+        taxObj.push({
+          taxName: serviceChargeName,
+          totalTax: calculatedServiceAmount,
+        });
+      } else {
+        console.log("serviceAmount total: ", total);
+        calculatedServiceAmount = Money.__instance.currency(serviceAmount);
+        taxObj.push({
+          taxName: serviceChargeName,
+          totalTax: calculatedServiceAmount,
+        });
+      }
+    }
+
+    let totalTax1 = Money.__instance.currency(0);
+    let totalTax2 = Money.__instance.currency(0);
+    let totalTax3 = Money.__instance.currency(0);
+
+    if (taxConfig.tax1Value !== null) {
+      let subTotalTax = Money.__instance.currency(0);
+
+      for (let item of orderItems) {
+        if (item.tax1Id !== null) {
+          subTotalTax = subTotalTax.add(item.priceSum);
+        }
+      }
+
+      if (subTotalTax.value !== 0) {
+        if (taxConfig.applySurcharge && calculatedServiceAmount !== null) {
+          let subFeeAmt = subTotalTax
+            .multiple(calculatedServiceAmount)
+            .divide(subTotal);
+          subTotalTax = subTotalTax.add(subFeeAmt);
+        }
+
+        if (!taxConfig.priceExclude)
+          totalTax1 = subTotalTax.multiply(taxConfig.tax1Value).divide(100);
+        else
+          totalTax1 = subTotalTax.subtract(
+            subTotalTax.divide((100 + taxConfig.tax1Value) / 100)
+          );
+
+        taxObj.push({
+          taxName: taxConfig.tax1Name,
+          totalTax: totalTax1,
+        });
+      }
+    }
+
+    if (taxConfig.tax2Value !== null) {
+      let subTotalTax = Money.__instance.currency(0);
+
+      for (let item of orderItems) {
+        if (item.tax2Id !== null) {
+          subTotalTax = subTotalTax.add(item.priceSum);
+        }
+      }
+
+      if (subTotalTax.value !== 0) {
+        if (taxConfig.applySurcharge && calculatedServiceAmount !== null) {
+          let subFeeAmt = subTotalTax
+            .multiple(calculatedServiceAmount)
+            .divide(subTotal);
+          subTotalTax = subTotalTax.add(subFeeAmt);
+        }
+
+        if (totalTax1.value !== 0) {
+          subTotalTax = subTotalTax.add(totalTax1);
+        }
+
+        if (!taxConfig.priceExclude)
+          totalTax2 = subTotalTax.multiply(taxConfig.tax2Value).divide(100);
+        else
+          totalTax2 = subTotalTax.subtract(
+            subTotalTax.divide((100 + taxConfig.tax2Value) / 100)
+          );
+
+        taxObj.push({
+          taxName: taxConfig.tax2Name,
+          totalTax: totalTax2,
+        });
+      }
+    }
+
+    if (taxConfig.tax3Value !== null) {
+      let subTotalTax = Money.__instance.currency(0);
+      for (let item of orderItems) {
+        if (item.tax3Id !== null) {
+          subTotalTax = subTotalTax.add(item.priceSum);
+        }
+      }
+
+      if (subTotalTax.value !== 0) {
+        if (taxConfig.applySurcharge && calculatedServiceAmount !== null) {
+          let subFeeAmt = subTotalTax
+            .multiple(calculatedServiceAmount)
+            .divide(subTotal);
+          subTotalTax = subTotalTax.add(subFeeAmt);
+        }
+
+        if (totalTax1.value !== null) {
+          subTotalTax = subTotalTax.add(totalTax1);
+        }
+
+        if (totalTax2.value !== null) {
+          subTotalTax = subTotalTax.add(totalTax2);
+        }
+
+        if (!taxConfig.priceExclude)
+          totalTax3 = subTotalTax.multiply(taxConfig.tax3Value).divide(100);
+        else
+          totalTax3 = subTotalTax.subtract(
+            subTotalTax.divide((100 + taxConfig.tax3Value) / 100)
+          );
+
+        taxObj.push({
+          taxName: taxConfig.tax3Name,
+          totalTax: totalTax3,
+        });
+      }
+    }
+
+    totalTax = totalTax.add(totalTax1).add(totalTax2).add(totalTax3);
+
+    let subTotalExcludeTax = Money.__instance.currency(0);
+
+    if (taxConfig.priceExclude) {
+      subTotalExcludeTax = subTotal.subtract(totalTax);
+    } else {
+      subTotalExcludeTax = subTotal;
+    }
+
+    total = subTotalExcludeTax.add(totalTax).add(calculatedServiceAmount);
+
+    //rounding here
+    var selectedPaymentMethods =
+      Money.__instance.paymentMethods.filter((paymentMethod) => {
+        return (
+          paymentMethod.type == userSelectedPaymentMethodType &&
+          paymentMethod.enable &&
+          paymentMethod.beDefault
+        );
+      }) || [];
+    // console.log("Selected Payment Method ---- ", selectedPaymentMethods);
+    if (selectedPaymentMethods.length > 0) {
+      // console.log(total.value);
+      var roundedTotal = total.value;
+      if (userSelectedPaymentMethodType != 1) {
+        roundedTotal = Money.round(
+          total.value,
+          selectedPaymentMethods[0].rounding,
+          selectedPaymentMethods[0].roundType
+        );
+      }
+      // console.log(roundedTotal);
+      total.value = roundedTotal;
+    }
+
+    return {
+      subTotal: subTotal.value,
+      total: total.value,
+      totalTax: totalTax.value,
+      taxObj,
+      discount: 0,
+      deliveryFee: 0,
+      originalDeliveryFee: 0,
+      selectedPromotions: [],
+      orderItems: currentOrderItems,
+    };
+  };
+}

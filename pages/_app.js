@@ -11,7 +11,7 @@ import "bootstrap/dist/css/bootstrap.css";
 import "../styles/globals.css";
 import variables from "../styles/variables.module.scss";
 import styles from "../styles/styles.scss";
-import 'font-awesome/css/font-awesome.min.css';
+import "font-awesome/css/font-awesome.min.css";
 
 function MyApp({ Component, pageProps }) {
   const store = useStore((state) => state);
@@ -32,6 +32,14 @@ function MyApp({ Component, pageProps }) {
   }, [dispatch]);
 
   useEffect(() => {
+    console.log("-----------------------------------------");
+    console.log("storeConfig: ", storeConfig);
+    console.log("taxConfig: ", taxConfig);
+    console.log("promotions: ", promotions);
+    console.log("user: ", user);
+    console.log("paymentConfig: ", paymentConfig);
+    console.log("-----------------------------------------");
+
     Money.init(storeConfig, taxConfig, promotions, user, paymentConfig || []);
   }, [storeConfig, taxConfig, promotions, user, paymentConfig]);
 

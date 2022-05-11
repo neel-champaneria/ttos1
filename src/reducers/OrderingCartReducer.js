@@ -43,6 +43,7 @@ const initialState = {
   orderingMethodAddressFormDirty: false,
   removedPromotions: [],
   buyOneGetOneFreePromotions: [],
+  serviceCharge: 0,
 };
 
 export default (state = initialState, action) => {
@@ -85,15 +86,12 @@ export default (state = initialState, action) => {
       const orderingItem = action.payload;
       let maxlength = calculateSequence();
       orderingItem.sequence = maxlength + 1;
+      console.log("currentOrderingItems: ", currentOrderingItems);
       currentOrderingItems.push(orderingItem);
+      console.log("currentOrderingItems: ", currentOrderingItems);
 
       //calculate subTotal & total
-      var orderPrice = Money.orderPrice(
-        state,
-        currentOrderingItems,
-        state.removedPromotions,
-        tempBuyOneGetOneFreePromotions
-      );
+      var orderPrice = Money.orderPriceWithPOS(state, currentOrderingItems);
       return {
         ...state,
         ...orderPrice,
@@ -115,17 +113,17 @@ export default (state = initialState, action) => {
       }
       console.log(tempUpdatedCurrentOrderingItems);
 
-      let newOrderPrice = Money.orderPrice(
+      let newOrderPrice = Money.orderPriceWithPOS(
         state,
-        tempUpdatedCurrentOrderingItems,
-        state.removedPromotions,
-        tempBuyOneGetOneFreePromotions
+        tempUpdatedCurrentOrderingItems
+        // state.removedPromotions,
+        // tempBuyOneGetOneFreePromotions
       );
-      var orderPrice = Money.orderPrice(
+      var orderPrice = Money.orderPriceWithPOS(
         state,
-        currentOrderingItems,
-        state.removedPromotions,
-        tempBuyOneGetOneFreePromotions
+        currentOrderingItems
+        // state.removedPromotions,
+        // tempBuyOneGetOneFreePromotions
       );
 
       console.log(
@@ -210,11 +208,11 @@ export default (state = initialState, action) => {
       });
 
       //calculate subTotal & total
-      var orderPrice = Money.orderPrice(
+      var orderPrice = Money.orderPriceWithPOS(
         state,
-        currentOrderingItems,
-        state.removedPromotions,
-        tempBuyOneGetOneFreePromotions
+        currentOrderingItems
+        // state.removedPromotions,
+        // tempBuyOneGetOneFreePromotions
       );
       return {
         ...state,
@@ -239,11 +237,11 @@ export default (state = initialState, action) => {
       });
 
       //calculate subTotal & total
-      var orderPrice = Money.orderPrice(
+      var orderPrice = Money.orderPriceWithPOS(
         state,
-        currentOrderingItems,
-        state.removedPromotions,
-        tempBuyOneGetOneFreePromotions
+        currentOrderingItems
+        // state.removedPromotions,
+        // tempBuyOneGetOneFreePromotions
       );
 
       return {
@@ -266,11 +264,11 @@ export default (state = initialState, action) => {
       });
 
       //calculate subTotal & total
-      var orderPrice = Money.orderPrice(
+      var orderPrice = Money.orderPriceWithPOS(
         state,
-        currentOrderingItems,
-        state.removedPromotions,
-        tempBuyOneGetOneFreePromotions
+        currentOrderingItems
+        // state.removedPromotions,
+        // tempBuyOneGetOneFreePromotions
       );
 
       return {
@@ -341,7 +339,7 @@ export default (state = initialState, action) => {
         currentDeliveryDateTime = action.payload.deliveryDateTime;
       }
 
-      var orderPrice = Money.orderPrice(
+      var orderPrice = Money.orderPriceWithPOS(
         {
           ...state,
           paymentMethod: currentPaymentMethod,
@@ -352,9 +350,9 @@ export default (state = initialState, action) => {
           deliveryZoneId: currentSelectedDeliveryZoneId,
           deliveryDateTime: currentDeliveryDateTime,
         },
-        currentOrderingItems,
-        state.removedPromotions,
-        tempBuyOneGetOneFreePromotions
+        currentOrderingItems
+        // state.removedPromotions,
+        // tempBuyOneGetOneFreePromotions
       );
       return {
         ...state,
@@ -461,12 +459,13 @@ export default (state = initialState, action) => {
       };
 
     case RE_CALCULATE_ORDER_PRICE:
-      var orderPrice = Money.orderPrice(
+      var orderPrice = Money.orderPriceWithPOS(
         state,
-        currentOrderingItems,
-        state.removedPromotions,
-        tempBuyOneGetOneFreePromotions
+        currentOrderingItems
+        // state.removedPromotions,
+        // tempBuyOneGetOneFreePromotions
       );
+      console.log("---------------Recalculate called --------------------");
       return {
         ...state,
         ...orderPrice,

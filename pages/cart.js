@@ -58,45 +58,41 @@ const CartPage = () => {
       setShowTableQrErrorToast(true);
       return;
     }
-    if (gotoUserInfoPage) {
-      router.push("/userInfoForOrder");
+    setLoading(true);
+    const {
+      customerName,
+      customerPhone,
+      customerEmail,
+      orderItems,
+      subTotal,
+      discount,
+      total,
+      totalTax,
+    } = orderingCart;
+    const data = {
+      customerName,
+      customerPhone,
+      customerEmail,
+      customerPassword: customerEmail,
+      deliveryPostalCode: "101010",
+      deliveryAddress1: "address 2",
+      deliveryAddress2: "address 1",
+      orderItems,
+      subTotal,
+      discount,
+      total,
+      totalTax,
+      tableNr: qrInfo.tableId,
+      qrId: qrInfo.qrId,
+      paymentMethod: "COD",
+    };
+    const response = await dispatch(checkOutTTOSAction(data));
+    if (response.status) {
+      router.replace("/orderPlacedSuccessfully");
+      setLoading(false);
     } else {
-      setLoading(true);
-      const {
-        customerName,
-        customerPhone,
-        customerEmail,
-        orderItems,
-        subTotal,
-        discount,
-        total,
-        totalTax,
-      } = orderingCart;
-      const data = {
-        customerName,
-        customerPhone,
-        customerEmail,
-        customerPassword: customerEmail,
-        deliveryPostalCode: "101010",
-        deliveryAddress1: "address 2",
-        deliveryAddress2: "address 1",
-        orderItems,
-        subTotal,
-        discount,
-        total,
-        totalTax,
-        tableNr: qrInfo.tableId,
-        qrId: qrInfo.qrId,
-        paymentMethod: "COD",
-      };
-      const response = await dispatch(checkOutTTOSAction(data));
-      if (response.status) {
-        router.replace("/orderPlacedSuccessfully");
-        setLoading(false);
-      } else {
-        setLoading(false);
-        setShowErrorToast(true);
-      }
+      setLoading(false);
+      setShowErrorToast(true);
     }
   };
 
@@ -166,10 +162,10 @@ const CartPage = () => {
                     {Money.moneyFormat(orderingCart.subTotal)}
                   </p>
                 </div>
-                <div className="d-flex mb10">
+                <>
                   {orderingCart?.taxObj?.map((tax, idx) => {
                     return (
-                      <div key="idx">
+                      <div className="d-flex mb4">
                         <p className="medium_para mr-auto mb0">{tax.taxName}</p>
                         <p className="medium_para mb0">
                           {Money.moneyFormat(tax.totalTax)}
@@ -177,7 +173,7 @@ const CartPage = () => {
                       </div>
                     );
                   })}
-                </div>
+                </>
                 <div className="d-flex">
                   <p className="medium_font font-bold mr-auto mb0">Total:</p>
                   <p className="medium_font font-bold mb0">
