@@ -165,7 +165,7 @@ const CartPage = () => {
                 <>
                   {orderingCart?.taxObj?.map((tax, idx) => {
                     return (
-                      <div className="d-flex mb4">
+                      <div className="d-flex mb4" key={idx}>
                         <p className="medium_para mr-auto mb0">{tax.taxName}</p>
                         <p className="medium_para mb0">
                           {Money.moneyFormat(tax.totalTax)}
